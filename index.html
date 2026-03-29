@@ -57,11 +57,11 @@
                     </label>
                     <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
                         <input type="checkbox" id="toggle-pvc" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-                        <span class="text-sm font-medium">PVC Supports (Triangular)</span>
+                        <span class="text-sm font-medium">PVC Support Poles (4x)</span>
                     </label>
                     <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
                         <input type="checkbox" id="toggle-brooder" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-                        <span class="text-sm font-medium">Central Brooder (6ft)</span>
+                        <span class="text-sm font-medium">Suspended Brooder (6ft)</span>
                     </label>
                     <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
                         <input type="checkbox" id="toggle-lights" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
@@ -69,7 +69,7 @@
                     </label>
                     <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
                         <input type="checkbox" id="toggle-camera" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-                        <span class="text-sm font-medium">L-Mount & ESP32 Camera</span>
+                        <span class="text-sm font-medium">ESP32 Camera Module</span>
                     </label>
                     <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
                         <input type="checkbox" id="toggle-chickens" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
@@ -99,7 +99,7 @@
                 </div>
 
                 <h2 class="text-sm font-semibold text-blue-600 mb-2 uppercase tracking-wider">ESP32 AI Controller</h2>
-                <p class="text-xs text-gray-500 mb-2">AI detects chick positions. Lights turn ON if any chick leaves the brooder to guide them back.</p>
+                <p class="text-xs text-gray-500 mb-2">AI detects chick positions. For every 6 chicks that wander outside, an extra light is activated.</p>
                 <p id="ai-status" data-state="init" class="text-xs text-gray-600 font-bold mt-3 bg-gray-50 p-2 rounded border border-gray-200">
                     Initializing AI...
                 </p>
@@ -133,7 +133,7 @@
         scene.fog = new THREE.Fog(0x87CEEB, 20, 50);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(12, 10, 15);
+        camera.position.set(15, 12, 18);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -209,7 +209,7 @@
         feederInner.position.y = 0.08;
         feederOuter.castShadow = true;
         feederOuter.receiveShadow = true;
-        groups.pvc.add(feederOuter, feederInner);
+        scene.add(feederOuter, feederInner);
 
         // --- 2. Concrete Boundary (12ft diameter -> radius 6, height 1) ---
         // We create a thick wall using inner/outer cylinders and a top ring
@@ -234,21 +234,73 @@
         groups.boundary.add(outerWall, innerWall, topRing);
         groups.boundary.position.y = wallHeight / 2;
 
-        // --- 3. PVC Pipes (3x 5-inch triangulated) ---
-        const pvcHeight = 1.8; // Height to support the brooder
-        const pvcRad = 0.2; // approx 5 inches scale
-        const pvcDistance = 1.5; // distance from center
+        // Shared Height Variables
+        const brooderHeight = 1.8; // The height at which the brooder hangs
+        const brooderRigHeight = 4.0; // The height of the 3 short PVC booms holding the brooder
+        const camRigHeight = 14.0; // The height of the 1 tall PVC boom holding the camera
+        const pvcRad = 0.2;        // Thickness of the PVC pipe
 
+        // --- 3. PVC Support Poles (4 Total) ---
+        
+        // A. The 3 Short PVC Pipes for the Brooder
         for(let i=0; i<3; i++) {
             const angle = (i * 120) * (Math.PI / 180);
-            const pipe = new THREE.Mesh(new THREE.CylinderGeometry(pvcRad, pvcRad, pvcHeight, 16), matPVC);
-            pipe.position.set(Math.cos(angle) * pvcDistance, pvcHeight/2, Math.sin(angle) * pvcDistance);
-            pipe.castShadow = true;
-            pipe.receiveShadow = true;
-            groups.pvc.add(pipe);
+            const pX = Math.cos(angle) * 6.2; // Just outside the 6ft boundary
+            const pZ = Math.sin(angle) * 6.2;
+
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(pvcRad, pvcRad, brooderRigHeight, 16), matPVC);
+            pillar.position.set(pX, brooderRigHeight/2, pZ);
+            pillar.castShadow = true; pillar.receiveShadow = true;
+
+            const elbow = new THREE.Mesh(new THREE.SphereGeometry(pvcRad * 1.1, 16, 16), matPVC);
+            elbow.position.set(pX, brooderRigHeight - pvcRad, pZ);
+
+            const boomLength = 6.2;
+            const boomGeo = new THREE.CylinderGeometry(pvcRad, pvcRad, boomLength, 16);
+            boomGeo.rotateX(Math.PI / 2); // Align correctly
+            const boom = new THREE.Mesh(boomGeo, matPVC);
+            boom.position.set(pX / 2, brooderRigHeight - pvcRad, pZ / 2);
+            boom.lookAt(0, brooderRigHeight - pvcRad, 0); // Point boom exactly to center
+            boom.castShadow = true; boom.receiveShadow = true;
+
+            groups.pvc.add(pillar, elbow, boom);
         }
 
-        // --- 4. Central Brooder (6ft diameter -> radius 3) ---
+        // Central hub for the 3 brooder booms
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.4, 16), matPVC);
+        hub.position.set(0, brooderRigHeight - pvcRad, 0);
+        
+        // Hanging drop-pipe to suspend the brooder
+        const hangingPipeLength = (brooderRigHeight - pvcRad) - brooderHeight;
+        const hangingPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, hangingPipeLength, 8), matMetal);
+        hangingPipe.position.set(0, brooderHeight + hangingPipeLength/2, 0);
+        hangingPipe.castShadow = true;
+
+        groups.pvc.add(hub, hangingPipe);
+
+        // B. The 1 Tall PVC Pipe for the Camera
+        const camAngle = 45 * (Math.PI / 180); // Offset the camera pole so it doesn't overlap the brooder poles
+        const cX = Math.cos(camAngle) * 6.2;
+        const cZ = Math.sin(camAngle) * 6.2;
+
+        const camPillar = new THREE.Mesh(new THREE.CylinderGeometry(pvcRad, pvcRad, camRigHeight, 16), matPVC);
+        camPillar.position.set(cX, camRigHeight/2, cZ);
+        camPillar.castShadow = true; camPillar.receiveShadow = true;
+
+        const camElbow = new THREE.Mesh(new THREE.SphereGeometry(pvcRad * 1.1, 16, 16), matPVC);
+        camElbow.position.set(cX, camRigHeight - pvcRad, cZ);
+
+        const camBoomLength = 6.2;
+        const camBoomGeo = new THREE.CylinderGeometry(pvcRad, pvcRad, camBoomLength, 16);
+        camBoomGeo.rotateX(Math.PI / 2);
+        const camBoom = new THREE.Mesh(camBoomGeo, matPVC);
+        camBoom.position.set(cX / 2, camRigHeight - pvcRad, cZ / 2);
+        camBoom.lookAt(0, camRigHeight - pvcRad, 0);
+        camBoom.castShadow = true; camBoom.receiveShadow = true;
+
+        groups.pvc.add(camPillar, camElbow, camBoom);
+
+        // --- 4. Suspended Central Brooder (6ft diameter -> radius 3) ---
         // Top-peaked canopy based on diagram
         const brooderGeoGroup = new THREE.Group();
         const baseGeo = new THREE.CylinderGeometry(3, 3, 0.2, 32);
@@ -259,38 +311,27 @@
         bTop.position.y = 0.5; // 0.2 + 0.3 (half of height 0.6)
         bBase.castShadow = true; bBase.receiveShadow = true;
         bTop.castShadow = true; bTop.receiveShadow = true;
+        
         brooderGeoGroup.add(bBase, bTop);
-        brooderGeoGroup.position.y = pvcHeight; // Rest on pipes
+        brooderGeoGroup.position.y = brooderHeight; // Hanging height
         groups.brooder.add(brooderGeoGroup);
 
-        // --- 5. L-Mount & Camera ---
-        const poleHeight = 9; // High enough to see the whole 12ft
+        // --- 5. ESP32 Camera Module (Mounted on the High Boom) ---
+        const camHeight = camRigHeight - pvcRad - 0.2; // High up on the PVC boom at the center
         
-        // Vertical Pole (attached to boundary)
-        const vPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, poleHeight, 16), matMetal);
-        vPole.position.set(6.1, poleHeight/2, 0); // Just outside boundary
-        vPole.castShadow = true;
-        
-        // Horizontal Pole (extending to center)
-        const hLength = 6.2;
-        const hPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, hLength, 16), matMetal);
-        hPole.rotation.z = Math.PI / 2;
-        hPole.position.set(6.1 - hLength/2, poleHeight - 0.1, 0);
-        hPole.castShadow = true;
-
         // ESP32 Camera Box
         const camBody = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.3), matCamera);
-        camBody.position.set(0, poleHeight - 0.2, 0);
+        camBody.position.set(0, camHeight, 0);
         const camLens = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 16), new THREE.MeshBasicMaterial({color: 0x000000}));
         camLens.rotation.x = Math.PI / 2;
-        camLens.position.set(0, poleHeight - 0.3, 0);
+        camLens.position.set(0, camHeight - 0.1, 0);
 
         // Camera Status Light (Red Blinking)
         const camRedLightMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
         const camRedLight = new THREE.Mesh(new THREE.SphereGeometry(0.02, 16, 16), camRedLightMat);
-        camRedLight.position.set(0.12, poleHeight - 0.1, 0.1); // On top front corner of camera
+        camRedLight.position.set(0.12, camHeight + 0.1, 0.1); // On top front corner of camera
 
-        groups.camera.add(vPole, hPole, camBody, camLens, camRedLight);
+        groups.camera.add(camBody, camLens, camRedLight);
 
         // --- 6. Smart Lights (10 Lights hanging from brooder) ---
         const matBulbOn = new THREE.MeshBasicMaterial({ color: 0xffeaa7 });
@@ -306,7 +347,7 @@
             const angle = isInner ? (i * angleStep) : ((i-4) * angleStep + Math.PI/6);
             
             // Height: Embedded flat under the canopy
-            const lHeight = pvcHeight - 0.05; 
+            const lHeight = brooderHeight - 0.05; 
 
             const bulbGroup = new THREE.Group();
             
