@@ -3,1351 +3,656 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Smart Poultry Lighting Simulator (3D)</title>
-    <!-- Three.js for 3D Rendering -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>Smart Poultry Monitoring System 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --bg-dark: #0b1120; /* Slightly darker deeper blue */
-            --panel-bg: #1e293b;
-            --panel-bg-grad: linear-gradient(145deg, #1e293b, #0f172a);
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #3b82f6;
-            --accent-glow: rgba(59, 130, 246, 0.4);
-            --light-off: #334155;
-            --light-on: #fbbf24;
-            --danger: #ef4444;
-            --success: #10b981;
-            --border: rgba(255, 255, 255, 0.08);
-            --glass-bg: rgba(15, 23, 42, 0.6);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-            user-select: none;
-        }
-
-        /* --- Custom Scrollbar --- */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: var(--bg-dark); 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #334155; 
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #475569; 
-        }
-
-        /* --- Layout --- */
-        .app-container {
-            display: flex;
-            width: 100%;
-            height: 100%;
-        }
-
-        .main-view {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-
-        /* 3D Container */
-        #canvas-container {
-            width: 100%;
-            height: 100%;
-            cursor: grab;
-        }
+        body { margin: 0; overflow: hidden; background-color: #1a202c; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
         
-        #canvas-container:active {
-            cursor: grabbing;
-        }
-
-        #heatmap-canvas {
-            display: none;
-        }
-
-        /* Simulated ESP32-CAM Overlay */
-        .cam-overlay {
-            position: absolute;
-            bottom: 24px;
-            right: 24px;
-            width: 240px;
-            height: 180px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            z-index: 20;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-        }
-
-        .cam-header {
-            background-color: rgba(0, 0, 0, 0.4);
-            color: #fff;
-            font-size: 0.75rem;
-            font-weight: 600;
-            padding: 8px 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-            letter-spacing: 0.5px;
-        }
-
-        .rec-dot {
-            width: 8px;
-            height: 8px;
-            background-color: var(--danger);
-            border-radius: 50%;
-            animation: blink 1.5s ease-in-out infinite;
-            box-shadow: 0 0 8px var(--danger);
-        }
-
-        .cam-view {
-            flex: 1;
-            position: relative;
-            background-image: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
-        }
-
-        .scanline {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.1), transparent);
-            animation: scan 4s linear infinite;
-        }
-
-        /* --- Sidebar Controls --- */
-        .sidebar {
-            width: 400px;
-            background-color: #0f172a; /* Solid dark background */
-            border-left: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            padding: 24px;
-            overflow-y: auto;
-            z-index: 10;
-            box-shadow: -4px 0 20px rgba(0,0,0,0.2);
-        }
-
-        .panel-section {
-            background: var(--panel-bg-grad);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-
-        .panel-title {
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            color: var(--text-muted);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-box {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .stat-card {
-            background: rgba(15, 23, 42, 0.5);
-            padding: 14px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            text-align: center;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--text-main);
-            margin-top: 6px;
-            letter-spacing: -0.5px;
-        }
-
-        .stat-value.saving { color: var(--success); text-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
-
-        .ai-status-text {
-            background: rgba(59, 130, 246, 0.08);
-            border-left: 4px solid var(--accent);
-            padding: 14px;
-            font-size: 0.9rem;
-            line-height: 1.5;
-            color: #e0f2fe;
-            border-radius: 0 8px 8px 0;
-            box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.05);
-        }
-
-        .control-group {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        button {
-            flex: 1;
-            background: linear-gradient(to bottom, #1e293b, #0f172a);
-            color: var(--text-main);
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        button:hover:not(:disabled) {
-            background: linear-gradient(to bottom, #334155, #1e293b);
-            border-color: rgba(255,255,255,0.2);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-
-        button:active:not(:disabled) {
-            transform: translateY(1px);
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        }
-
-        button.active {
-            background: var(--accent);
-            border-color: #60a5fa;
-            color: white;
-            box-shadow: 0 0 15px var(--accent-glow);
-        }
-
-        .toggle-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(16, 185, 129, 0.05);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            padding: 16px;
-            border-radius: 10px;
-            margin-bottom: 16px;
-            transition: all 0.3s ease;
-        }
-        
-        .toggle-container:hover {
-            background: rgba(16, 185, 129, 0.08);
-        }
-
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 48px;
-            height: 26px;
-        }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #475569; transition: .4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 26px;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
-        }
-        .slider:before {
-            position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px;
-            background-color: white; transition: .4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        input:checked + .slider { background-color: var(--success); }
-        input:checked + .slider:before { transform: translateX(22px); }
-
-        .manual-lights {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-top: 16px;
-        }
-
-        .brooder-control {
-            background: rgba(0,0,0,0.25);
-            padding: 8px;
-            border-radius: 10px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            border: 1px solid rgba(255,255,255,0.03);
-            box-shadow: inset 0 2px 6px rgba(0,0,0,0.2);
-        }
-
-        .manual-btn {
-            width: 100%;
-            height: 36px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 0.85rem;
-            padding: 0;
-            cursor: pointer;
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-            background: rgba(30, 41, 59, 0.8);
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .manual-btn:hover {
-            background: rgba(51, 65, 85, 0.8);
-            color: var(--text-main);
-        }
-
-        .manual-btn.on {
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            color: #451a03;
-            border-color: #fbbf24;
-            box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3), inset 0 1px 0 rgba(255,255,255,0.4);
-            text-shadow: 0 1px 1px rgba(255,255,255,0.3);
-        }
-
-        .badge {
-            background-color: var(--danger); 
-            color: white;
-            padding: 3px 8px; 
-            border-radius: 12px; 
-            font-size: 0.7rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
-        }
-
-        #play-pause-btn {
-            background: linear-gradient(135deg, var(--success), #059669);
-            color: #fff; 
-            border: none; 
-            font-weight: 700; 
-            font-size: 1.05rem; 
-            padding: 16px; 
-            margin-top: auto;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-            letter-spacing: 0.5px;
-        }
-        #play-pause-btn:hover {
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
-            transform: translateY(-2px);
-        }
-        #play-pause-btn.paused { 
-            background: linear-gradient(135deg, var(--danger), #dc2626);
-            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
-        }
-        #play-pause-btn.paused:hover {
-            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
-        }
-
-        /* Animations */
-        @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
-        .disabled-text { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
+        /* Custom Scrollbar for the control panel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
+    <!-- Import Maps for Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
-<body>
+<body class="antialiased text-gray-800">
 
-    <div class="app-container">
-        <!-- Main 3D View -->
-        <div class="main-view">
-            <!-- 3D WebGL Canvas goes here -->
-            <div id="canvas-container"></div>
-            
-            <!-- Hidden Canvas for dynamic 3D Floor Texture -->
-            <canvas id="heatmap-canvas" width="1000" height="1000"></canvas>
-
-            <!-- 2D ESP32-CAM Feed Overlay -->
-            <div class="cam-overlay">
-                <div class="cam-header">
-                    <span style="display:flex; align-items:center; gap:6px;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>
-                        ESP32-CAM VISION
-                    </span>
-                    <div class="rec-dot"></div>
-                </div>
-                <div class="cam-view">
-                    <div class="scanline"></div>
-                    <canvas id="mini-cam" style="width:100%; height:100%;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sidebar Controls -->
-        <div class="sidebar">
-            <div class="panel-section">
-                <div class="panel-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 012-2h14v4"/><path d="M3 15v4a2 2 0 002 2h14v-4"/><path d="M3 7v4h16V7H3z"/></svg>
-                    Dashboard Statistics
-                </div>
-                <div class="status-box">
-                    <div class="stat-card">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight:600;">Mode</div>
-                        <div class="stat-value" id="stat-mode" style="font-size: 1.15rem; margin-top: 8px;">Scattered</div>
-                    </div>
-                    <div class="stat-card">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight:600;">Activity</div>
-                        <div class="stat-value" id="stat-activity" style="font-size: 1.15rem; margin-top: 8px;">Active</div>
-                    </div>
-                    <div class="stat-card">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight:600;">Active Lights</div>
-                        <div class="stat-value" id="stat-lights">16 / 16</div>
-                    </div>
-                    <div class="stat-card">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight:600;">Power Draw</div>
-                        <div class="stat-value" id="stat-power" style="color: #fbbf24; text-shadow: 0 0 10px rgba(251,191,36,0.3);">240 W</div>
-                    </div>
-                    <div class="stat-card" style="grid-column: span 2; background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.2);">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight:600;">Efficiency Rating (Saved)</div>
-                        <div class="stat-value saving" id="stat-energy" style="font-size: 1.8rem;">0%</div>
-                    </div>
-                </div>
-                
-                <div class="panel-title" style="margin-top: 24px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                    AI Decision Engine
-                </div>
-                <div class="ai-status-text" id="ai-log">
-                    AI Status: Initializing sensors... Waiting for flock data.
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <div class="toggle-container">
-                    <div>
-                        <strong style="font-size:0.95rem; letter-spacing:0.3px;">Auto AI Mode</strong>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">Let TinyML control lighting</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="ai-toggle" checked>
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="toggle-container" style="background: rgba(59, 130, 246, 0.05); border-color: rgba(59, 130, 246, 0.2);">
-                    <div>
-                        <strong style="font-size:0.95rem; letter-spacing:0.3px;">Show Tin Roof</strong>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">Toggle overhead roof visibility</div>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="roof-toggle" checked>
-                        <span class="slider" style="background-color: #334155;"></span>
-                    </label>
-                </div>
-
-                <div class="panel-title" style="margin-top: 24px; justify-content: space-between;">
-                    <span style="display:flex; align-items:center; gap:8px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21h6M12 17v4M12 3a7 7 0 00-7 7c0 2 1.5 4 1.5 6h11c0-2 1.5-4 1.5-6a7 7 0 00-7-7z"/></svg>
-                        Manual Override
-                    </span>
-                    <span class="badge" id="manual-badge" style="display:none;">AI OFF</span>
-                </div>
-                <div class="manual-lights" id="manual-controls">
-                    <!-- Buttons generated dynamically per brooder -->
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <div class="panel-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    Simulate Flock Behavior
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight:600;">Spatial Distribution</div>
-                <div class="control-group">
-                    <button id="btn-scattered" class="active">Scattered</button>
-                    <button id="btn-grouped">Grouped</button>
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; margin-top:16px; text-transform: uppercase; font-weight:600;">Movement Intensity</div>
-                <div class="control-group">
-                    <button id="btn-active" class="active">High Activity</button>
-                    <button id="btn-inactive">Low Activity</button>
-                </div>
-            </div>
-
-            <button id="play-pause-btn">Stop Simulation</button>
+    <!-- Loading Screen -->
+    <div id="loading" class="absolute inset-0 z-50 flex items-center justify-center bg-gray-900 text-white transition-opacity duration-500">
+        <div class="flex flex-col items-center">
+            <svg class="animate-spin h-10 w-10 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <h2 class="text-xl font-semibold">Building 3D Farm...</h2>
         </div>
     </div>
 
-    <script>
-        // --- Application State ---
-        const State = {
-            isRunning: true,
-            aiEnabled: true,
-            distribution: 'scattered', 
-            activity: 'active', 
-            numBrooders: 4,
-            lightsPerBrooder: 4,
-            numLights: 16,
-            lights: new Array(16).fill(true),
-            numChickens: 80,
-            farmWidth: 1000,  // Logical grid size for physics
-            farmHeight: 1000
-        };
-
-        // Brooder Definitions (2x2 grid)
-        const brooders = [
-            { id: 0, bounds: { xMin: 10, xMax: 490, yMin: 10, yMax: 490 }, target: { x: 250, y: 250 } }, // Top-Left
-            { id: 1, bounds: { xMin: 510, xMax: 990, yMin: 10, yMax: 490 }, target: { x: 750, y: 250 } }, // Top-Right
-            { id: 2, bounds: { xMin: 10, xMax: 490, yMin: 510, yMax: 990 }, target: { x: 250, y: 750 } }, // Bottom-Left
-            { id: 3, bounds: { xMin: 510, xMax: 990, yMin: 510, yMax: 990 }, target: { x: 750, y: 750 } }  // Bottom-Right
-        ];
-
-        const chickensLogic = [];
+    <!-- UI Overlay: Control Panel -->
+    <div class="absolute top-4 right-4 bg-white/95 backdrop-blur shadow-2xl rounded-xl w-72 max-h-[90vh] flex flex-col z-10 border border-gray-200">
+        <div class="p-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+            <h1 class="text-lg font-bold text-gray-900 leading-tight">Smart Poultry Monitor</h1>
+            <p class="text-xs text-gray-500 mt-1">Interactive 3D Blueprint</p>
+        </div>
         
-        // --- DOM Elements ---
-        const heatmapCanvas = document.getElementById('heatmap-canvas');
-        const heatCtx = heatmapCanvas.getContext('2d');
-        const miniCamCanvas = document.getElementById('mini-cam');
-        const camCtx = miniCamCanvas.getContext('2d');
+        <div class="p-4 overflow-y-auto flex-1 space-y-4">
+            <div>
+                <h2 class="text-sm font-semibold text-blue-600 mb-2 uppercase tracking-wider">Component Visibility</h2>
+                <p class="text-xs text-gray-500 mb-3">Isolate components to see structural capacity.</p>
+                
+                <div class="space-y-2">
+                    <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" id="toggle-boundary" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium">Concrete Boundary (12ft)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" id="toggle-pvc" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium">PVC Supports (Triangular)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" id="toggle-brooder" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium">Central Brooder (6ft)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" id="toggle-lights" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium">Smart Lights (10x)</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" id="toggle-camera" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium">L-Mount & ESP32 Camera</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" id="toggle-chickens" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium">Live Chicken Movement</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" id="toggle-scanner" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium">AI Monitor Scanner</span>
+                    </label>
+                    <label class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" id="toggle-radar2d" checked class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium">2D Radar Screen</span>
+                    </label>
+                </div>
+            </div>
 
-        // UI Dashboard
-        const statMode = document.getElementById('stat-mode');
-        const statActivity = document.getElementById('stat-activity');
-        const statLights = document.getElementById('stat-lights');
-        const statPower = document.getElementById('stat-power');
-        const statEnergy = document.getElementById('stat-energy');
-        const aiLog = document.getElementById('ai-log');
-        
-        // Controls
-        const aiToggle = document.getElementById('ai-toggle');
-        const manualControls = document.getElementById('manual-controls');
-        let manualBtns = [];
-        const manualBadge = document.getElementById('manual-badge');
-        
-        const btnScattered = document.getElementById('btn-scattered');
-        const btnGrouped = document.getElementById('btn-grouped');
-        const btnActive = document.getElementById('btn-active');
-        const btnInactive = document.getElementById('btn-inactive');
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        const roofToggle = document.getElementById('roof-toggle');
+            <div class="border-t border-gray-200 pt-4">
+                <h2 class="text-sm font-semibold text-purple-600 mb-2 uppercase tracking-wider">Simulation Testing</h2>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-gray-600">Chick Activity Level:</span>
+                    <span id="activity-label" class="text-xs font-bold text-gray-800">Wandering (50%)</span>
+                </div>
+                <input type="range" id="activity-slider" min="0" max="100" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                <div class="flex justify-between text-[10px] text-gray-500 mt-1 mb-4">
+                    <span>Resting (Inside)</span>
+                    <span>Scattered (Outside)</span>
+                </div>
 
-        // --- Three.js Variables ---
-        let scene, camera, renderer;
-        let floorTexture, floorMaterial;
-        let chickenMeshes = [];
-        let spotLights = [];
-        let bulbMeshes = [];
-        let roofGroup;
+                <h2 class="text-sm font-semibold text-blue-600 mb-2 uppercase tracking-wider">ESP32 AI Controller</h2>
+                <p class="text-xs text-gray-500 mb-2">AI detects chick positions. Lights turn ON if any chick leaves the brooder to guide them back.</p>
+                <p id="ai-status" data-state="init" class="text-xs text-gray-600 font-bold mt-3 bg-gray-50 p-2 rounded border border-gray-200">
+                    Initializing AI...
+                </p>
+            </div>
+        </div>
+    </div>
 
-        // Camera dragging variables
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-        let camAngle = Math.PI / 4; // Start at 45 degree angle
-        let camHeight = 450; // Start lower to see through the net
-        let camRadius = 1100; // Start further out (changed from const to let for zooming)
+    <!-- UI Overlay: Instructions -->
+    <div class="absolute bottom-4 right-4 bg-white/80 backdrop-blur px-4 py-2 rounded-lg shadow pointer-events-none z-10">
+        <p class="text-sm text-gray-700 font-medium">🖱️ Left Click + Drag to Rotate | 📜 Scroll to Zoom | 🖱️ Right Click + Drag to Pan</p>
+    </div>
 
-        // --- Texture Generators ---
-        function createNetTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-            
-            // Black background for alpha masking (cutout)
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, 64, 64);
+    <!-- UI Overlay: 2D Radar Monitor (Moved to bottom-left) -->
+    <div id="radar-container" class="absolute bottom-4 left-4 w-56 h-56 bg-gray-900 border-4 border-gray-800 rounded-full shadow-2xl overflow-hidden z-10 transition-opacity duration-300">
+        <canvas id="radar-canvas" width="224" height="224" class="w-full h-full block"></canvas>
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span id="radar-alert-text" class="text-xl tracking-widest font-bold text-red-500 opacity-0 transition-opacity duration-200 drop-shadow-md">BREACH</span>
+        </div>
+    </div>
 
-            // White diamond pattern for the net
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(32, 0); ctx.lineTo(64, 32); ctx.lineTo(32, 64); ctx.lineTo(0, 32); ctx.closePath();
-            ctx.stroke();
+    <div id="canvas-container"></div>
 
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.wrapS = THREE.RepeatWrapping;
-            tex.wrapT = THREE.RepeatWrapping;
-            return tex;
-        }
-
-        function createCorrugatedTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 128;
-            const ctx = canvas.getContext('2d');
-
-            // Linear gradient for corrugated tin waves
-            const grad = ctx.createLinearGradient(0, 0, 128, 0);
-            grad.addColorStop(0, '#556066');   // Groove
-            grad.addColorStop(0.5, '#9ca3af'); // Peak
-            grad.addColorStop(1, '#556066');   // Groove
-
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 128, 128);
-
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.wrapS = THREE.RepeatWrapping;
-            tex.wrapT = THREE.RepeatWrapping;
-            return tex;
-        }
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
         // --- Initialization ---
-        window.onload = function () {
-            init3DScene();
-            initPhysics();
-            setupEventListeners();
-            updateDashboard();
-            evaluateAI();
-            
-            // Start Animation Loop once window is loaded
-            animate();
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 50);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(12, 10, 15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; // Don't go below ground
+
+        // --- Lighting (Global) ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 50;
+        dirLight.shadow.camera.left = -15;
+        dirLight.shadow.camera.right = 15;
+        dirLight.shadow.camera.top = 15;
+        dirLight.shadow.camera.bottom = -15;
+        scene.add(dirLight);
+
+        // --- Materials ---
+        const matConcrete = new THREE.MeshStandardMaterial({ color: 0xa3a3a3, roughness: 0.9 });
+        const matGround = new THREE.MeshStandardMaterial({ color: 0x5a6e3a, roughness: 1.0 }); // Dirt/grass
+        const matPVC = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2 });
+        const matBrooder = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.5, roughness: 0.4 }); // Metallic heat canopy
+        const matMetal = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7, roughness: 0.3 });
+        const matCamera = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.8, roughness: 0.2 });
+
+        // --- Groups for toggling visibility ---
+        const groups = {
+            boundary: new THREE.Group(),
+            pvc: new THREE.Group(),
+            brooder: new THREE.Group(),
+            lights: new THREE.Group(),
+            camera: new THREE.Group(),
+            chickens: new THREE.Group(),
+            scanner: new THREE.Group()
         };
 
-        function init3DScene() {
-            const container = document.getElementById('canvas-container');
-            
-            // Scene Setup
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1511); // Dark barn interior
-            scene.fog = new THREE.FogExp2(0x1a1511, 0.0012); // Warmer, dustier fog
+        // Add groups to scene
+        Object.values(groups).forEach(g => scene.add(g));
 
-            // Camera Setup
-            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 3000);
-            updateCameraPosition();
+        // --- 1. Ground & Pen Floor ---
+        const groundGeo = new THREE.PlaneGeometry(50, 50);
+        const ground = new THREE.Mesh(groundGeo, matGround);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
 
-            // Renderer Setup
-            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            container.appendChild(renderer.domElement);
+        // Sandy orange floor inside the concrete boundary
+        const penFloorGeo = new THREE.CircleGeometry(5.9, 64);
+        const matPenFloor = new THREE.MeshStandardMaterial({ color: 0xfcc65c, roughness: 1.0 });
+        const penFloor = new THREE.Mesh(penFloorGeo, matPenFloor);
+        penFloor.rotation.x = -Math.PI / 2;
+        penFloor.position.y = 0.01;
+        penFloor.receiveShadow = true;
+        scene.add(penFloor); // Add directly to scene so it's always visible
 
-            // Lighting (Ambient + Global Directional + Dynamic Spotlights)
-            const ambientLight = new THREE.AmbientLight(0x40352c, 1.8); // Warm dusty ambient
-            scene.add(ambientLight);
+        // Central Feeding Pod (Based on diagram)
+        const feederOuter = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.15, 32), new THREE.MeshStandardMaterial({ color: 0x5d4037 })); // Brown rim
+        const feederInner = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.16, 32), new THREE.MeshStandardMaterial({ color: 0x1e1e1e })); // Black center
+        feederOuter.position.y = 0.075;
+        feederInner.position.y = 0.08;
+        feederOuter.castShadow = true;
+        feederOuter.receiveShadow = true;
+        groups.pvc.add(feederOuter, feederInner);
 
-            // Global light to provide base shadows
-            const dirLight = new THREE.DirectionalLight(0xffeacc, 0.4); // Slightly warm directional
-            dirLight.position.set(200, 800, 200);
-            dirLight.castShadow = true;
-            dirLight.shadow.camera.top = 600;
-            dirLight.shadow.camera.bottom = -600;
-            dirLight.shadow.camera.left = -600;
-            dirLight.shadow.camera.right = 600;
-            dirLight.shadow.mapSize.width = 1024;
-            dirLight.shadow.mapSize.height = 1024;
-            scene.add(dirLight);
+        // --- 2. Concrete Boundary (12ft diameter -> radius 6, height 1) ---
+        // We create a thick wall using inner/outer cylinders and a top ring
+        const wallHeight = 1;
+        const outerRad = 6;
+        const innerRad = 5.5; // 6 inches thick wall
+        
+        const outerWall = new THREE.Mesh(new THREE.CylinderGeometry(outerRad, outerRad, wallHeight, 64, 1, true), matConcrete);
+        const innerWall = new THREE.Mesh(new THREE.CylinderGeometry(innerRad, innerRad, wallHeight, 64, 1, true), matConcrete);
+        const topRing = new THREE.Mesh(new THREE.RingGeometry(innerRad, outerRad, 64), matConcrete);
+        
+        outerWall.material.side = THREE.DoubleSide;
+        innerWall.material.side = THREE.DoubleSide;
+        topRing.rotation.x = -Math.PI / 2;
+        topRing.position.y = wallHeight / 2;
+        
+        outerWall.castShadow = true;
+        outerWall.receiveShadow = true;
+        innerWall.castShadow = true;
+        innerWall.receiveShadow = true;
 
-            // Floor with dynamic 2D canvas texture
-            floorTexture = new THREE.CanvasTexture(heatmapCanvas);
-            floorMaterial = new THREE.MeshStandardMaterial({ 
-                map: floorTexture, 
-                roughness: 0.9,
-                metalness: 0.05
-            });
-            
-            const floorGeo = new THREE.PlaneGeometry(State.farmWidth, State.farmHeight);
-            const floor = new THREE.Mesh(floorGeo, floorMaterial);
-            floor.rotation.x = -Math.PI / 2;
-            floor.receiveShadow = true;
-            scene.add(floor);
+        groups.boundary.add(outerWall, innerWall, topRing);
+        groups.boundary.position.y = wallHeight / 2;
 
-            // Add grid helper over floor (Subtle dirt lines)
-            const gridHelper = new THREE.GridHelper(State.farmWidth, 20, 0x8b5a2b, 0x5c4033);
-            gridHelper.position.y = 1; 
-            scene.add(gridHelper);
+        // --- 3. PVC Pipes (3x 5-inch triangulated) ---
+        const pvcHeight = 1.8; // Height to support the brooder
+        const pvcRad = 0.2; // approx 5 inches scale
+        const pvcDistance = 1.5; // distance from center
 
-            // === BARN ENVIRONMENT ===
-            
-            // 1. Structural Pillars (Wood)
-            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x4a3018, roughness: 0.9 });
-            const wallHeight = 250;
-            const pillarGeo = new THREE.BoxGeometry(15, wallHeight, 15);
-            
-            // Corner and Edge Posts
-            const postPositions = [
-                [-500, -500], [500, -500], [-500, 500], [500, 500], // Corners
-                [0, -500], [0, 500], [-500, 0], [500, 0] // Mid points
-            ];
-            
-            postPositions.forEach(pos => {
-                const post = new THREE.Mesh(pillarGeo, pillarMat);
-                post.position.set(pos[0], wallHeight/2, pos[1]);
-                post.castShadow = true;
-                post.receiveShadow = true;
-                scene.add(post);
-            });
-
-            // 1.5 Perimeter Netting (Chicken Wire)
-            const netTex = createNetTexture();
-            netTex.repeat.set(30, 8); // Repeat texture along the wall
-            
-            const netMat = new THREE.MeshStandardMaterial({ 
-                color: 0x8899a6, 
-                alphaMap: netTex, 
-                alphaTest: 0.5, // Crisp cutout for wire mesh
-                side: THREE.DoubleSide, 
-                roughness: 0.8, 
-                metalness: 0.4 
-            });
-
-            const netGeoH = new THREE.PlaneGeometry(1000, wallHeight);
-            
-            const netN = new THREE.Mesh(netGeoH, netMat);
-            netN.position.set(0, wallHeight/2, -500);
-            scene.add(netN);
-
-            const netS = new THREE.Mesh(netGeoH, netMat);
-            netS.position.set(0, wallHeight/2, 500);
-            netS.rotation.y = Math.PI; // flip
-            scene.add(netS);
-
-            const netE = new THREE.Mesh(netGeoH, netMat);
-            netE.position.set(500, wallHeight/2, 0);
-            netE.rotation.y = Math.PI / 2;
-            scene.add(netE);
-
-            const netW = new THREE.Mesh(netGeoH, netMat);
-            netW.position.set(-500, wallHeight/2, 0);
-            netW.rotation.y = -Math.PI / 2;
-            scene.add(netW);
-
-            // 1.8 Corrugated Tin Roof
-            roofGroup = new THREE.Group();
-            const corrTex = createCorrugatedTexture();
-            corrTex.repeat.set(20, 1);
-            
-            const roofMat = new THREE.MeshStandardMaterial({
-                color: 0xffffff,
-                map: corrTex,
-                roughness: 0.5,
-                metalness: 0.6,
-                side: THREE.DoubleSide
-            });
-
-            const roofPitch = 0.25; // ~14 degrees
-            const roofWidth = 540; // Slight overhang
-            const roofLength = 1040;
-
-            // Left Roof Pitch
-            const roofL = new THREE.Mesh(new THREE.PlaneGeometry(roofWidth, roofLength), roofMat);
-            roofL.rotation.x = -Math.PI / 2;
-            roofL.rotation.y = -roofPitch;
-            roofL.position.set(-260, wallHeight + Math.sin(roofPitch)*roofWidth/2 - 10, 0);
-            roofL.castShadow = true;
-            roofL.receiveShadow = true;
-            roofGroup.add(roofL);
-
-            // Right Roof Pitch
-            const roofR = new THREE.Mesh(new THREE.PlaneGeometry(roofWidth, roofLength), roofMat);
-            roofR.rotation.x = -Math.PI / 2;
-            roofR.rotation.y = roofPitch;
-            roofR.position.set(260, wallHeight + Math.sin(roofPitch)*roofWidth/2 - 10, 0);
-            roofR.castShadow = true;
-            roofR.receiveShadow = true;
-            roofGroup.add(roofR);
-            
-            scene.add(roofGroup);
-
-            // 2. Inner Brooder Fences (Wooden Planks)
-            const fenceMaterial = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 1.0 }); // Burlywood
-            const fenceH = new THREE.Mesh(new THREE.BoxGeometry(1000, 25, 8), fenceMaterial);
-            fenceH.position.y = 12.5;
-            fenceH.receiveShadow = true;
-            fenceH.castShadow = true;
-            scene.add(fenceH);
-            
-            const fenceV = new THREE.Mesh(new THREE.BoxGeometry(8, 25, 1000), fenceMaterial);
-            fenceV.position.y = 12.5;
-            fenceV.receiveShadow = true;
-            fenceV.castShadow = true;
-            scene.add(fenceV);
-
-            // 3. Central Pillar
-            const pillar = new THREE.Mesh(new THREE.BoxGeometry(15, 300, 15), pillarMat);
-            pillar.position.y = 150;
-            pillar.castShadow = true;
-            scene.add(pillar);
-
-            // 4. Feeders and Waterers
-            const feederBaseGeo = new THREE.CylinderGeometry(15, 15, 4, 16);
-            const feederTopGeo = new THREE.CylinderGeometry(8, 8, 18, 16);
-            const feederBaseMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.8 }); // Red Base
-            const feederTopMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 }); // Yellow Top
-            const watererTopMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.7 }); // Semi-clear Top
-
-            for (let b = 0; b < State.numBrooders; b++) {
-                const br = brooders[b];
-                const midX = (br.bounds.xMin + br.bounds.xMax) / 2;
-                const midY = (br.bounds.yMin + br.bounds.yMax) / 2;
-                
-                // Add Feeder
-                const fX = midX - (State.farmWidth / 2) + 40;
-                const fZ = midY - (State.farmHeight / 2) - 40;
-                const feederGroup = new THREE.Group();
-                const fBase = new THREE.Mesh(feederBaseGeo, feederBaseMat);
-                fBase.position.y = 2;
-                fBase.castShadow = true;
-                const fTop = new THREE.Mesh(feederTopGeo, feederTopMat);
-                fTop.position.y = 13;
-                fTop.castShadow = true;
-                feederGroup.add(fBase);
-                feederGroup.add(fTop);
-                feederGroup.position.set(fX, 0, fZ);
-                scene.add(feederGroup);
-
-                // Add Waterer
-                const wX = midX - (State.farmWidth / 2) - 40;
-                const wZ = midY - (State.farmHeight / 2) + 40;
-                const watererGroup = new THREE.Group();
-                const wBase = new THREE.Mesh(feederBaseGeo, feederBaseMat); // Red base
-                wBase.position.y = 2;
-                wBase.castShadow = true;
-                const wTop = new THREE.Mesh(feederTopGeo, watererTopMat);
-                wTop.position.y = 13;
-                wTop.castShadow = true;
-                watererGroup.add(wBase);
-                watererGroup.add(wTop);
-                watererGroup.position.set(wX, 0, wZ);
-                scene.add(watererGroup);
-            }
-            // === END BARN ENVIRONMENT ===
-
-
-            // Create Overhead Lights (4 Brooders x 4 Lights = 16 Lights)
-            for (let b = 0; b < State.numBrooders; b++) {
-                const br = brooders[b];
-                const midX = (br.bounds.xMin + br.bounds.xMax) / 2;
-                const midY = (br.bounds.yMin + br.bounds.yMax) / 2;
-                const offset = 120; // Distance from center of brooder
-
-                const lightPositions = [
-                    { x: midX - offset, y: midY - offset }, // TL
-                    { x: midX + offset, y: midY - offset }, // TR
-                    { x: midX - offset, y: midY + offset }, // BL
-                    { x: midX + offset, y: midY + offset }  // BR
-                ];
-
-                lightPositions.forEach(pos => {
-                    const posX = pos.x - (State.farmWidth / 2);
-                    const posZ = pos.y - (State.farmHeight / 2);
-                    const heightY = 250;
-
-                    // 1. The SpotLight
-                    const spotLight = new THREE.SpotLight(0xfbbf24, 0); 
-                    spotLight.position.set(posX, heightY, posZ);
-                    spotLight.angle = Math.PI / 4.5;
-                    spotLight.penumbra = 0.5;
-                    spotLight.decay = 2;
-                    spotLight.distance = 600;
-                    spotLight.castShadow = false; // Disabled to prevent hitting WebGL limits
-                    
-                    scene.add(spotLight);
-                    
-                    const targetObject = new THREE.Object3D();
-                    targetObject.position.set(posX, 0, posZ);
-                    scene.add(targetObject);
-                    spotLight.target = targetObject;
-                    
-                    spotLights.push(spotLight);
-
-                    // 2. The Bulb Mesh
-                    const bulbGeo = new THREE.SphereGeometry(8, 16, 16);
-                    const bulbMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
-                    const bulb = new THREE.Mesh(bulbGeo, bulbMat);
-                    bulb.position.set(posX, heightY, posZ);
-                    scene.add(bulb);
-                    bulbMeshes.push(bulb);
-
-                    // Bulb Housing
-                    const housingGeo = new THREE.ConeGeometry(15, 20, 16);
-                    const housingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
-                    const housing = new THREE.Mesh(housingGeo, housingMat);
-                    housing.position.set(posX, heightY + 10, posZ);
-                    scene.add(housing);
-                });
-            }
-
-            // Create Chicken Meshes Pool (Low-poly Chicken shapes)
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 });
-            const redMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.7 });
-            const beakMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.7 });
-
-            const bodyGeo = new THREE.SphereGeometry(4.5, 8, 8);
-            const headGeo = new THREE.SphereGeometry(2.5, 8, 8);
-            const beakGeo = new THREE.ConeGeometry(1, 3, 4);
-            const combGeo = new THREE.BoxGeometry(0.8, 1.5, 2);
-
-            for (let i = 0; i < State.numChickens; i++) {
-                const chickenGroup = new THREE.Group();
-
-                // 1. Plump Body
-                const body = new THREE.Mesh(bodyGeo, bodyMat);
-                body.scale.set(1, 0.8, 1.2); // make it oval
-                body.position.y = 4;
-                body.castShadow = true;
-                chickenGroup.add(body);
-
-                // 2. Head
-                const head = new THREE.Mesh(headGeo, bodyMat);
-                head.position.set(0, 7.5, 4); // position forward
-                head.castShadow = true;
-                chickenGroup.add(head);
-
-                // 3. Beak
-                const beak = new THREE.Mesh(beakGeo, beakMat);
-                beak.rotation.x = Math.PI / 2; // point forward
-                beak.position.set(0, 7.5, 6);
-                beak.castShadow = true;
-                chickenGroup.add(beak);
-
-                // 4. Red Comb
-                const comb = new THREE.Mesh(combGeo, redMat);
-                comb.position.set(0, 9, 4);
-                comb.castShadow = true;
-                chickenGroup.add(comb);
-
-                scene.add(chickenGroup);
-                chickenMeshes.push(chickenGroup);
-            }
-
-            // Handle Resize
-            window.addEventListener('resize', () => {
-                camera.aspect = container.clientWidth / container.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
-            });
+        for(let i=0; i<3; i++) {
+            const angle = (i * 120) * (Math.PI / 180);
+            const pipe = new THREE.Mesh(new THREE.CylinderGeometry(pvcRad, pvcRad, pvcHeight, 16), matPVC);
+            pipe.position.set(Math.cos(angle) * pvcDistance, pvcHeight/2, Math.sin(angle) * pvcDistance);
+            pipe.castShadow = true;
+            pipe.receiveShadow = true;
+            groups.pvc.add(pipe);
         }
 
-        // --- Camera Controls ---
-        function updateCameraPosition() {
-            camera.position.x = camRadius * Math.sin(camAngle);
-            camera.position.z = camRadius * Math.cos(camAngle);
-            camera.position.y = camHeight;
-            camera.lookAt(0, 0, 0);
-        }
+        // --- 4. Central Brooder (6ft diameter -> radius 3) ---
+        // Top-peaked canopy based on diagram
+        const brooderGeoGroup = new THREE.Group();
+        const baseGeo = new THREE.CylinderGeometry(3, 3, 0.2, 32);
+        const topGeo = new THREE.ConeGeometry(3, 0.6, 32);
+        const bBase = new THREE.Mesh(baseGeo, matBrooder);
+        const bTop = new THREE.Mesh(topGeo, matBrooder);
+        bBase.position.y = 0.1;
+        bTop.position.y = 0.5; // 0.2 + 0.3 (half of height 0.6)
+        bBase.castShadow = true; bBase.receiveShadow = true;
+        bTop.castShadow = true; bTop.receiveShadow = true;
+        brooderGeoGroup.add(bBase, bTop);
+        brooderGeoGroup.position.y = pvcHeight; // Rest on pipes
+        groups.brooder.add(brooderGeoGroup);
 
-        // --- Physics Initialization ---
-        function initPhysics() {
-            miniCamCanvas.width = 240;
-            miniCamCanvas.height = 180;
+        // --- 5. L-Mount & Camera ---
+        const poleHeight = 9; // High enough to see the whole 12ft
+        
+        // Vertical Pole (attached to boundary)
+        const vPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, poleHeight, 16), matMetal);
+        vPole.position.set(6.1, poleHeight/2, 0); // Just outside boundary
+        vPole.castShadow = true;
+        
+        // Horizontal Pole (extending to center)
+        const hLength = 6.2;
+        const hPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, hLength, 16), matMetal);
+        hPole.rotation.z = Math.PI / 2;
+        hPole.position.set(6.1 - hLength/2, poleHeight - 0.1, 0);
+        hPole.castShadow = true;
+
+        // ESP32 Camera Box
+        const camBody = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.3), matCamera);
+        camBody.position.set(0, poleHeight - 0.2, 0);
+        const camLens = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 16), new THREE.MeshBasicMaterial({color: 0x000000}));
+        camLens.rotation.x = Math.PI / 2;
+        camLens.position.set(0, poleHeight - 0.3, 0);
+
+        // Camera Status Light (Red Blinking)
+        const camRedLightMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const camRedLight = new THREE.Mesh(new THREE.SphereGeometry(0.02, 16, 16), camRedLightMat);
+        camRedLight.position.set(0.12, poleHeight - 0.1, 0.1); // On top front corner of camera
+
+        groups.camera.add(vPole, hPole, camBody, camLens, camRedLight);
+
+        // --- 6. Smart Lights (10 Lights hanging from brooder) ---
+        const matBulbOn = new THREE.MeshBasicMaterial({ color: 0xffeaa7 });
+        const matBulbOff = new THREE.MeshStandardMaterial({ color: 0x555555 });
+        const activeLights = [];
+
+        for(let i=0; i<10; i++) {
+            // Distribute all 10 lights under the 6ft brooder
+            // 4 in an inner ring, 6 in an outer ring
+            const isInner = i < 4;
+            const radius = isInner ? 1.0 : 2.5; // Max radius is 3.0 for the brooder
+            const angleStep = isInner ? (Math.PI * 2 / 4) : (Math.PI * 2 / 6);
+            const angle = isInner ? (i * angleStep) : ((i-4) * angleStep + Math.PI/6);
             
-            // Generate manual buttons dynamically per brooder
-            manualControls.innerHTML = '';
-            for (let b = 0; b < State.numBrooders; b++) {
-                const bDiv = document.createElement('div');
-                bDiv.className = 'brooder-control';
-                for (let l = 0; l < State.lightsPerBrooder; l++) {
-                    const btn = document.createElement('button');
-                    btn.className = 'manual-btn on';
-                    btn.innerText = `L${b*4 + l + 1}`;
-                    btn.dataset.index = b*4 + l;
-                    bDiv.appendChild(btn);
-                }
-                manualControls.appendChild(bDiv);
-            }
-            manualBtns = document.querySelectorAll('.manual-btn');
+            // Height: Embedded flat under the canopy
+            const lHeight = pvcHeight - 0.05; 
+
+            const bulbGroup = new THREE.Group();
             
-            for (let i = 0; i < State.numChickens; i++) {
-                const bId = i % State.numBrooders;
-                const bounds = brooders[bId].bounds;
-                chickensLogic.push({
-                    id: i,
-                    brooderId: bId,
-                    x: bounds.xMin + Math.random() * (bounds.xMax - bounds.xMin),
-                    y: bounds.yMin + Math.random() * (bounds.yMax - bounds.yMin),
-                    vx: (Math.random() - 0.5) * 4,
-                    vy: (Math.random() - 0.5) * 4,
-                    baseSpeed: Math.random() * 1.0 + 1.0
-                });
-            }
-            setRandomGroupTarget();
-        }
-
-        function setRandomGroupTarget() {
-            brooders.forEach(br => {
-                const bw = br.bounds.xMax - br.bounds.xMin;
-                const bh = br.bounds.yMax - br.bounds.yMin;
-                br.target = {
-                    x: br.bounds.xMin + bw * 0.2 + Math.random() * (bw * 0.6),
-                    y: br.bounds.yMin + bh * 0.2 + Math.random() * (bh * 0.6)
-                };
-            });
-        }
-
-        // --- Event Listeners ---
-        function setupEventListeners() {
-            // Camera Mouse Controls
-            const container = document.getElementById('canvas-container');
-            container.addEventListener('mousedown', (e) => {
-                isDragging = true;
-                previousMousePosition = { x: e.offsetX, y: e.offsetY };
-            });
-
-            document.addEventListener('mouseup', () => { isDragging = false; });
-            document.addEventListener('mouseleave', () => { isDragging = false; });
-
-            document.addEventListener('mousemove', (e) => {
-                if (isDragging) {
-                    const deltaX = e.offsetX - previousMousePosition.x;
-                    const deltaY = e.offsetY - previousMousePosition.y;
-                    
-                    camAngle -= deltaX * 0.01;
-                    camHeight += deltaY * 2;
-                    
-                    // Limit up/down angle
-                    camHeight = Math.max(100, Math.min(1200, camHeight));
-                    
-                    updateCameraPosition();
-                    previousMousePosition = { x: e.offsetX, y: e.offsetY };
-                }
-            });
-
-            // Camera Scroll to Zoom
-            container.addEventListener('wheel', (e) => {
-                e.preventDefault(); // Prevent page scrolling
-                camRadius += e.deltaY * 0.5; // Adjust zoom speed
-                
-                // Limit zoom distance (min zoom in, max zoom out)
-                camRadius = Math.max(300, Math.min(2500, camRadius));
-                
-                updateCameraPosition();
-            }, { passive: false });
-
-            // Behavior Buttons
-            btnScattered.addEventListener('click', () => {
-                State.distribution = 'scattered';
-                btnScattered.classList.add('active');
-                btnGrouped.classList.remove('active');
-                updateDashboard(); evaluateAI();
-            });
-
-            btnGrouped.addEventListener('click', () => {
-                State.distribution = 'grouped';
-                setRandomGroupTarget();
-                btnGrouped.classList.add('active');
-                btnScattered.classList.remove('active');
-                updateDashboard(); evaluateAI();
-            });
-
-            btnActive.addEventListener('click', () => {
-                State.activity = 'active';
-                btnActive.classList.add('active');
-                btnInactive.classList.remove('active');
-                updateDashboard(); evaluateAI();
-            });
-
-            btnInactive.addEventListener('click', () => {
-                State.activity = 'inactive';
-                btnInactive.classList.add('active');
-                btnActive.classList.remove('active');
-                updateDashboard(); evaluateAI();
-            });
-
-            // AI Toggle
-            aiToggle.addEventListener('change', (e) => {
-                State.aiEnabled = e.target.checked;
-                if (State.aiEnabled) {
-                    manualControls.classList.add('disabled-text');
-                    manualBadge.style.display = 'none';
-                    evaluateAI();
-                } else {
-                    manualControls.classList.remove('disabled-text');
-                    manualBadge.style.display = 'inline-block';
-                    aiLog.innerHTML = `<strong style="color:var(--text-main);">AI Disabled.</strong><br>Manual Control Active.`;
-                }
-            });
-
-            // Roof Toggle
-            roofToggle.addEventListener('change', (e) => {
-                if (roofGroup) {
-                    roofGroup.visible = e.target.checked;
-                }
-            });
-
-            // Manual Lights (Event Delegation for dynamic buttons)
-            manualControls.addEventListener('click', (e) => {
-                if (e.target.classList.contains('manual-btn')) {
-                    if (State.aiEnabled) {
-                        aiToggle.checked = false; State.aiEnabled = false;
-                        manualControls.classList.remove('disabled-text');
-                        manualBadge.style.display = 'inline-block';
-                        aiLog.innerHTML = `<strong style="color:var(--text-main);">AI Overridden.</strong><br>Manual Control Active.`;
-                    }
-                    const index = parseInt(e.target.dataset.index);
-                    State.lights[index] = !State.lights[index];
-                    applyLightsTo3D(); updateDashboardStatsOnly();
-                }
-            });
-
-            // Play/Pause
-            playPauseBtn.addEventListener('click', () => {
-                State.isRunning = !State.isRunning;
-                if (State.isRunning) {
-                    playPauseBtn.innerText = "Stop Simulation";
-                    playPauseBtn.classList.remove('paused');
-                } else {
-                    playPauseBtn.innerText = "Resume Simulation";
-                    playPauseBtn.classList.add('paused');
-                }
-            });
-        }
-
-        // --- AI Logic Engine ---
-        function evaluateAI() {
-            if (!State.aiEnabled) return;
-
-            let logMsg = "";
-            let newLights = new Array(16).fill(false);
-
-            if (State.distribution === 'scattered') {
-                if (State.activity === 'active') {
-                    newLights.fill(true);
-                    logMsg = "AI Status: <strong style='color:#fff;'>Optimal Coverage</strong>.<br>Flocks scattered & active across brooders. All lights ON.";
-                } else {
-                    // Checkerboard pattern per brooder
-                    for(let i=0; i<16; i+=4) { newLights[i] = true; newLights[i+3] = true; }
-                    logMsg = "AI Status: <strong style='color:#fff;'>Energy Saving (Scattered)</strong>.<br>Low activity. Diagonal lights enabled in brooders.";
-                }
-            } else { // Grouped
-                for (let b = 0; b < State.numBrooders; b++) {
-                    const br = brooders[b];
-                    const midX = (br.bounds.xMin + br.bounds.xMax) / 2;
-                    const midY = (br.bounds.yMin + br.bounds.yMax) / 2;
-                    
-                    // Determine which quadrant the target is in
-                    const isRight = br.target.x > midX;
-                    const isBottom = br.target.y > midY;
-                    
-                    // Indices: 0:TL, 1:TR, 2:BL, 3:BR
-                    let quadIndex = 0;
-                    if (!isBottom && !isRight) quadIndex = 0;
-                    else if (!isBottom && isRight) quadIndex = 1;
-                    else if (isBottom && !isRight) quadIndex = 2;
-                    else quadIndex = 3;
-
-                    const baseIdx = b * 4;
-                    newLights[baseIdx + quadIndex] = true;
-
-                    if (State.activity === 'active') {
-                        // Turn on one adjacent light for activity
-                        if (quadIndex === 0) newLights[baseIdx + 1] = true;
-                        else if (quadIndex === 1) newLights[baseIdx + 0] = true;
-                        else if (quadIndex === 2) newLights[baseIdx + 3] = true;
-                        else if (quadIndex === 3) newLights[baseIdx + 2] = true;
-                    }
-                }
-                
-                if (State.activity === 'active') {
-                    logMsg = "AI Status: <strong style='color:#fff;'>Zone Focusing</strong>.<br>Flocks grouped & active. Illuminating specific brooder zones.";
-                } else {
-                    logMsg = "AI Status: <strong style='color:#fff;'>Max Efficiency (Resting)</strong>.<br>Flocks clustered & resting. Minimal localized lighting applied.";
-                }
-            }
-
-            State.lights = newLights;
-            applyLightsTo3D();
-            updateDashboardStatsOnly();
-            aiLog.innerHTML = logMsg;
-        }
-
-        function applyLightsTo3D() {
-            State.lights.forEach((isOn, i) => {
-                if (isOn) {
-                    spotLights[i].intensity = 4; // Turn on 3D spotlight
-                    bulbMeshes[i].material.color.setHex(0xfbbf24); // Make bulb yellow
-                    if(manualBtns[i]) manualBtns[i].classList.add('on'); // Sidebar UI
-                } else {
-                    spotLights[i].intensity = 0; // Turn off
-                    bulbMeshes[i].material.color.setHex(0x1e293b); // Make bulb dark
-                    if(manualBtns[i]) manualBtns[i].classList.remove('on');
-                }
-            });
-        }
-
-        function updateDashboard() {
-            statMode.innerText = State.distribution.charAt(0).toUpperCase() + State.distribution.slice(1);
-            statActivity.innerText = State.activity.charAt(0).toUpperCase() + State.activity.slice(1);
-        }
-
-        function updateDashboardStatsOnly() {
-            const onCount = State.lights.filter(l => l).length;
-            statLights.innerText = `${onCount} / ${State.numLights}`;
+            // Base state: 2 lights ON always (indices 0 and 2, which are inner opposite lights)
+            const isInitiallyOn = (i === 0 || i === 2);
             
-            // Electricity Efficiency Calculation (Assume 15W per LED bulb)
-            const wattsPerBulb = 15;
-            const currentPower = onCount * wattsPerBulb;
-            const maxPower = State.numLights * wattsPerBulb;
+            // The physical bulb
+            const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), isInitiallyOn ? matBulbOn : matBulbOff);
+            bulb.position.set(0, lHeight, 0);
             
-            statPower.innerText = `${currentPower} W`;
+            // The actual light source
+            const pLight = new THREE.PointLight(0xffcc77, isInitiallyOn ? 2.5 : 0, 8); 
+            pLight.position.set(0, lHeight, 0);
+            pLight.castShadow = true;
             
-            // Update color based on power usage
-            if (currentPower === maxPower) {
-                statPower.style.color = 'var(--danger)';
-                statPower.style.textShadow = '0 0 10px rgba(239, 68, 68, 0.4)';
-            } else if (currentPower <= maxPower / 2) {
-                statPower.style.color = 'var(--success)';
-                statPower.style.textShadow = '0 0 10px rgba(16, 185, 129, 0.4)';
+            // Hanging wire/socket attaching bulb to the brooder
+            const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8), matMetal);
+            wire.position.set(0, lHeight + 0.1, 0);
+            bulbGroup.add(wire);
+
+            bulbGroup.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
+            bulbGroup.add(bulb, pLight);
+            
+            groups.lights.add(bulbGroup);
+            activeLights.push({ mesh: bulb, light: pLight });
+        }
+            
+        // --- 7. Live Newborn Chick "Springs" ---
+        const chickenList = [];
+        // Make them look like fluffy yellow newborns
+        const matChickenBody = new THREE.MeshStandardMaterial({ color: 0xffdd00, roughness: 0.9 }); // Yellow
+        const matChickenComb = new THREE.MeshStandardMaterial({ color: 0xffaa00 }); // Tiny orange tuft
+        const matChickenBeak = new THREE.MeshStandardMaterial({ color: 0xff8800 }); // Orange beak
+
+        for(let i=0; i<60; i++) {
+            const chicken = new THREE.Group();
+            
+            // Body (Smaller, rounder capsule for newborns)
+            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.1, 4, 8), matChickenBody);
+            body.rotation.z = Math.PI / 2;
+            body.position.y = 0.1;
+            body.castShadow = true;
+
+            // Head
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.08), matChickenBody);
+            head.position.set(0.12, 0.2, 0);
+            head.castShadow = true;
+
+            // Tuft (instead of big comb)
+            const comb = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.04), matChickenComb);
+            comb.position.set(0.12, 0.28, 0);
+
+            // Beak
+            const beak = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 4), matChickenBeak);
+            beak.rotation.z = -Math.PI / 2;
+            beak.position.set(0.2, 0.2, 0);
+
+            chicken.add(body, head, comb, beak);
+
+            // Randomize starting positions inside and outside the brooder (radius 1 to 5)
+            const angle = Math.random() * Math.PI * 2;
+            const r = 1.0 + Math.random() * 4.0; 
+            
+            chicken.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r);
+            chicken.rotation.y = -angle + Math.PI/2;
+
+            // Store complex animation data for wandering in and out
+            chicken.userData = {
+                angle: angle,
+                radius: r,
+                targetRadius: r,
+                angleSpeed: (Math.random() - 0.5) * 0.02,
+                changeTimer: Math.random() * 2,
+                bouncePhase: Math.random() * Math.PI * 2,
+                bounceSpeed: 10 + Math.random() * 5 // Reduced overall speed for smoother movement
+            };
+
+            groups.chickens.add(chicken);
+            chickenList.push(chicken);
+        }
+
+        // --- 8. Rounded Monitor Scanner (AI Radar Overlay) ---
+        // A glowing ring to represent the AI boundary limit
+        const scannerGeo = new THREE.RingGeometry(2.9, 3.1, 64);
+        const scannerMat = new THREE.MeshBasicMaterial({ color: 0x4db8ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+        const scannerRing = new THREE.Mesh(scannerGeo, scannerMat);
+        scannerRing.rotation.x = -Math.PI / 2;
+        scannerRing.position.y = 0.05; // Slightly above ground
+
+        // The specific "Scanning Area" designated by AI (Now a full 360 ring around the brooder)
+        const scanZoneGeo = new THREE.RingGeometry(3.0, 5.9, 64);
+        const scanZoneMat = new THREE.MeshBasicMaterial({ color: 0x4db8ff, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
+        const scanZone = new THREE.Mesh(scanZoneGeo, scanZoneMat);
+        scanZone.rotation.x = -Math.PI / 2;
+        scanZone.position.y = 0.02; // slightly above ground
+        
+        // A radar sweep graphic rotating around the enclosure
+        const radarGeo = new THREE.CircleGeometry(6, 64, 0, Math.PI / 6); 
+        const radarMat = new THREE.MeshBasicMaterial({ color: 0x4db8ff, transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+        const radarSweep = new THREE.Mesh(radarGeo, radarMat);
+        radarSweep.rotation.x = -Math.PI / 2;
+        radarSweep.position.y = 0.06;
+
+        groups.scanner.add(scannerRing, scanZone, radarSweep);
+
+        // --- Interaction Logic (UI Setup) ---
+        const toggleIds = ['boundary', 'pvc', 'brooder', 'lights', 'camera', 'chickens', 'scanner'];
+        toggleIds.forEach(id => {
+            document.getElementById(`toggle-${id}`).addEventListener('change', (e) => {
+                groups[id].visible = e.target.checked;
+            });
+        });
+
+        // Toggle 2D Radar Screen
+        document.getElementById('toggle-radar2d').addEventListener('change', (e) => {
+            document.getElementById('radar-container').style.opacity = e.target.checked ? '1' : '0';
+            document.getElementById('radar-container').style.pointerEvents = e.target.checked ? 'auto' : 'none';
+        });
+
+        // --- Activity Controller Setup ---
+        let globalActivityLevel = 50;
+        const activitySlider = document.getElementById('activity-slider');
+        const activityLabel = document.getElementById('activity-label');
+        
+        activitySlider.addEventListener('input', (e) => {
+            globalActivityLevel = parseInt(e.target.value);
+            if (globalActivityLevel < 33) {
+                activityLabel.innerText = `Resting (${globalActivityLevel}%)`;
+            } else if (globalActivityLevel < 66) {
+                activityLabel.innerText = `Wandering (${globalActivityLevel}%)`;
             } else {
-                statPower.style.color = '#fbbf24';
-                statPower.style.textShadow = '0 0 10px rgba(251, 191, 36, 0.4)';
+                activityLabel.innerText = `Scattered (${globalActivityLevel}%)`;
             }
             
-            const savedPct = ((State.numLights - onCount) / State.numLights) * 100;
-            statEnergy.innerText = `${savedPct.toFixed(0)}%`;
-            statEnergy.style.color = savedPct > 0 ? 'var(--success)' : 'var(--text-main)';
-            statEnergy.style.textShadow = savedPct > 0 ? '0 0 15px rgba(16, 185, 129, 0.4)' : 'none';
-        }
+            // Force chicks to update their targets immediately to respond to slider
+            chickenList.forEach(c => { c.userData.changeTimer = 0; });
+        });
 
-        // --- Main Simulation Loop ---
+        // --- 2D Radar Monitor Setup ---
+        const radarCanvas = document.getElementById('radar-canvas');
+        const ctx = radarCanvas.getContext('2d');
+        const radarSize = radarCanvas.width;
+        const radarCenter = radarSize / 2;
+        const worldScale = radarCenter / 6.5; // Scale: 6.5ft max radius fits in the canvas
+        const radarAlertText = document.getElementById('radar-alert-text');
+
+        // Set environment to evening/dim to clearly see the brooder lights
+        scene.background.setHex(0x1e293b); 
+        scene.fog.color.setHex(0x1e293b);
+        ambientLight.intensity = 0.2;
+        dirLight.intensity = 0.3;
+
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+
         function animate() {
             requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
 
-            if (State.isRunning) {
-                updatePhysics();
-                update2DHeatmapTexture();
-                renderMiniCam();
+            controls.update();
+            
+            // Blink the camera red light
+            if (time % 1.5 < 0.75) {
+                camRedLightMat.color.setHex(0xff0000); // Bright red
+            } else {
+                camRedLightMat.color.setHex(0x330000); // Dim red
             }
 
-            // Render 3D Scene
+            let chicksOutside = 0;
+
+            // Animate Newborn Chicken Springs
+            chickenList.forEach(c => {
+                const data = c.userData;
+                
+                // AI Wandering Logic: Chicks wander in and out of the brooder
+                data.changeTimer -= 0.016; 
+                if (data.changeTimer <= 0 || data.radius < 0.5 || data.radius > 5.5) {
+                    if (globalActivityLevel < 33) {
+                        // Resting: Stay safely inside brooder (radius 1.0 to 2.8)
+                        data.targetRadius = 1.0 + Math.random() * 1.8;
+                        data.angleSpeed = (Math.random() - 0.5) * 0.01;
+                        data.bounceSpeed = 3 + Math.random() * 2; // slow smooth movement
+                    } else if (globalActivityLevel < 66) {
+                        // Wandering: Randomly move inside and outside (radius 1.0 to 5.5)
+                        data.targetRadius = 1.0 + Math.random() * 4.5; 
+                        data.angleSpeed = (Math.random() - 0.5) * 0.02; // smoother turn
+                        data.bounceSpeed = 6 + Math.random() * 4; // normal smooth glide
+                    } else {
+                        // Scattered: Panic and scatter outside brooder (radius 3.5 to 5.5)
+                        data.targetRadius = 3.5 + Math.random() * 2.0;
+                        data.angleSpeed = (Math.random() - 0.5) * 0.035;
+                        data.bounceSpeed = 12 + Math.random() * 6; // slightly faster, still not jittery
+                    }
+                    data.changeTimer = 1 + Math.random() * 3; // Change direction every 1-4 seconds
+                }
+
+                // Smoothly interpolate radius to create natural wandering (reduced factor for softer glide)
+                data.radius += (data.targetRadius - data.radius) * 0.01;
+                data.angle += data.angleSpeed;
+
+                // Check AI Boundary (Scanning Area is now everywhere outside the brooder)
+                if (data.radius > 3.0) {
+                    chicksOutside++;
+                }
+
+                c.position.x = Math.cos(data.angle) * data.radius;
+                c.position.z = Math.sin(data.angle) * data.radius;
+                
+                // Point in direction of movement (roughly)
+                c.rotation.y = -data.angle + (data.angleSpeed > 0 ? 0 : Math.PI);
+
+                // Smooth glide effect (gentle sine wave instead of absolute jumping)
+                c.position.y = (Math.sin(time * data.bounceSpeed * 0.4 + data.bouncePhase) + 1) * 0.02;
+                
+                // Gentle body rock while moving
+                c.children[0].rotation.z = Math.PI/2 + Math.sin(time * data.bounceSpeed * 0.5) * 0.05;
+            });
+
+            // --- AI Controller Logic ---
+            const statusText = document.getElementById('ai-status');
+
+            // Animate Scanner Radar
+            radarSweep.rotation.z -= 0.03; // Sweeping circular motion
+            
+            // --- 2D Radar Rendering ---
+            ctx.clearRect(0, 0, radarSize, radarSize);
+            
+            // Radar Background Fill
+            ctx.beginPath();
+            ctx.arc(radarCenter, radarCenter, radarCenter, 0, Math.PI * 2);
+            ctx.fillStyle = '#022c22'; // Very dark green background
+            ctx.fill();
+
+            // Draw Scanning Area (Full Ring) on Radar
+            ctx.beginPath();
+            ctx.arc(radarCenter, radarCenter, 5.9 * worldScale, 0, Math.PI * 2);
+            ctx.arc(radarCenter, radarCenter, 3.0 * worldScale, 0, Math.PI * 2, true);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(77, 184, 255, 0.15)'; // Cool light blue
+            ctx.fill();
+
+            // Radar Grid Lines
+            ctx.strokeStyle = '#047857';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            // Brooder Boundary (3.0ft)
+            ctx.arc(radarCenter, radarCenter, 3.0 * worldScale, 0, Math.PI * 2);
+            // Outer Boundary (6.0ft)
+            ctx.moveTo(radarCenter + 6.0 * worldScale, radarCenter);
+            ctx.arc(radarCenter, radarCenter, 6.0 * worldScale, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Crosshairs
+            ctx.beginPath();
+            ctx.moveTo(0, radarCenter); ctx.lineTo(radarSize, radarCenter);
+            ctx.moveTo(radarCenter, 0); ctx.lineTo(radarCenter, radarSize);
+            ctx.stroke();
+
+            // Radar Sweep Wedge
+            ctx.save();
+            ctx.translate(radarCenter, radarCenter);
+            ctx.rotate(-radarSweep.rotation.z); // Sync with 3D sweep
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, radarCenter, 0, Math.PI / 6);
+            ctx.fillStyle = chicksOutside > 0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'; // Red or green wedge
+            ctx.fill();
+            ctx.restore();
+
+            // Draw Chicks on Radar
+            chickenList.forEach(c => {
+                const r = c.userData.radius;
+                const angle = c.userData.angle;
+                // Convert 3D Polar to 2D Cartesian
+                const px = radarCenter + Math.cos(angle) * r * worldScale;
+                const py = radarCenter + Math.sin(angle) * r * worldScale; 
+
+                // Check if outside the 3ft brooder radius
+                const inScan = (r > 3.0);
+
+                ctx.beginPath();
+                ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+                ctx.fillStyle = inScan ? '#ef4444' : '#fde047'; // Red if outside, Yellow if inside
+                
+                // Add glowing effect to blips
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.fill();
+                ctx.fill(); // double fill for stronger opacity
+                ctx.shadowBlur = 0; // reset
+            });
+
+            // --- AI Intelligent Lighting Logic based on Chicken Count ---
+            // Base: 2 lights ON always. For every 6 chicks outside, turn on 1 extra light.
+            let extraLights = Math.ceil(chicksOutside / 6);
+            let numLightsOn = Math.min(10, 2 + extraLights);
+
+            // Symmetrical sequence mapping the 10 lights: 2 base inner, then outer opposite pairs, then remaining inner, etc.
+            const sequence = [0, 2, 4, 7, 1, 3, 5, 8, 6, 9];
+
+            activeLights.forEach((item, index) => {
+                const sequenceIndex = sequence.indexOf(index);
+                if (sequenceIndex < numLightsOn) {
+                    item.mesh.material = matBulbOn;
+                    item.light.intensity = 2.5;
+                } else {
+                    item.mesh.material = matBulbOff;
+                    item.light.intensity = 0;
+                }
+            });
+
+            // Update UI and Scanner visual colors based on breach status
+            if (chicksOutside > 0) {
+                statusText.innerText = `AI ALERT: ${chicksOutside} Chick(s) Outside -> ${numLightsOn} Lights ON`;
+                statusText.className = "text-xs text-yellow-700 font-bold mt-3 bg-yellow-100 p-2 rounded border border-yellow-300 shadow-sm";
+                scannerMat.color.setHex(0xffaa00);
+                scanZoneMat.color.setHex(0xffaa00);
+                radarMat.color.setHex(0xffaa00);
+                radarAlertText.style.opacity = (Math.sin(time * 8) > 0) ? '1' : '0.2'; // Flashing text
+            } else {
+                statusText.innerText = `AI NORMAL: Area Clear -> 2 Lights ON`;
+                statusText.className = "text-xs text-green-700 font-bold mt-3 bg-green-100 p-2 rounded border border-green-300 shadow-sm";
+                scannerMat.color.setHex(0x4db8ff);
+                scanZoneMat.color.setHex(0x4db8ff); 
+                radarMat.color.setHex(0x4db8ff);
+                radarAlertText.style.opacity = '0';
+            }
+
             renderer.render(scene, camera);
         }
 
-        function updatePhysics() {
-            const speedMultiplier = State.activity === 'active' ? 2.5 : 0.6;
-            const cohesionStr = State.distribution === 'grouped' ? 0.05 : 0;
-            const wanderStr = State.distribution === 'scattered' ? 0.5 : 0.1;
+        // --- Window Resize Handling ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
-            chickensLogic.forEach((c, index) => {
-                const br = brooders[c.brooderId];
-                
-                // Wander
-                c.vx += (Math.random() - 0.5) * wanderStr;
-                c.vy += (Math.random() - 0.5) * wanderStr;
-
-                // Cohesion (Move to brooder's group target)
-                if (State.distribution === 'grouped') {
-                    const dx = br.target.x - c.x;
-                    const dy = br.target.y - c.y;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    if (dist > 10) {
-                        c.vx += (dx / dist) * cohesionStr;
-                        c.vy += (dy / dist) * cohesionStr;
-                    }
-                }
-
-                // Separation (only with chickens in same brooder)
-                chickensLogic.forEach(other => {
-                    if (c.id !== other.id && c.brooderId === other.brooderId) {
-                        const dx = c.x - other.x;
-                        const dy = c.y - other.y;
-                        const distSq = dx*dx + dy*dy;
-                        if (distSq < 1000) { // Keep distance
-                            c.vx += (dx / distSq) * 3;
-                            c.vy += (dy / distSq) * 3;
-                        }
-                    }
-                });
-
-                // Friction & Speed Limit
-                c.vx *= 0.92;
-                c.vy *= 0.92;
-                const speed = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
-                const maxSpeed = c.baseSpeed * speedMultiplier;
-                if (speed > maxSpeed) {
-                    c.vx = (c.vx / speed) * maxSpeed;
-                    c.vy = (c.vy / speed) * maxSpeed;
-                }
-
-                // Position update
-                c.x += c.vx;
-                c.y += c.vy;
-
-                // Bounce off brooder walls
-                const margin = 10;
-                if (c.x < br.bounds.xMin + margin) { c.x = br.bounds.xMin + margin; c.vx *= -1; }
-                if (c.x > br.bounds.xMax - margin) { c.x = br.bounds.xMax - margin; c.vx *= -1; }
-                if (c.y < br.bounds.yMin + margin) { c.y = br.bounds.yMin + margin; c.vy *= -1; }
-                if (c.y > br.bounds.yMax - margin) { c.y = br.bounds.yMax - margin; c.vy *= -1; }
-
-                // Map 2D Logical Data (0 to 1000) to 3D Space (-500 to 500)
-                const mesh = chickenMeshes[index];
-                if (mesh) {
-                    mesh.position.x = c.x - (State.farmWidth / 2);
-                    mesh.position.z = c.y - (State.farmHeight / 2);
-                    
-                    // Face movement direction
-                    if (speed > 0.1) {
-                        const targetAngle = Math.atan2(c.vx, c.vy); // Swap x/y for standard 3D rot
-                        mesh.rotation.y = targetAngle;
-                    }
-                }
-            });
+        // Initialize immediately instead of waiting for window.onload
+        const loader = document.getElementById('loading');
+        if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.remove(), 500);
         }
+        animate();
 
-        // Draw Heatmap to hidden 2D canvas, inject into 3D Floor
-        function update2DHeatmapTexture() {
-            heatCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
-            
-            // Base dirt/straw color for the barn floor
-            heatCtx.fillStyle = '#3e2723'; // Dark dirt brown
-            heatCtx.fillRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
-
-            chickensLogic.forEach(c => {
-                const gradient = heatCtx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 80);
-                gradient.addColorStop(0, 'rgba(239, 68, 68, 0.4)'); // Red core
-                gradient.addColorStop(0.5, 'rgba(245, 158, 11, 0.15)'); // Orange mid
-                gradient.addColorStop(1, 'rgba(62, 39, 35, 0)'); // Fade to dirt bg
-
-                heatCtx.beginPath();
-                heatCtx.arc(c.x, c.y, 80, 0, Math.PI * 2);
-                heatCtx.fillStyle = gradient;
-                heatCtx.fill();
-            });
-
-            // Tell Three.js the texture changed
-            floorTexture.needsUpdate = true;
-        }
-
-        function renderMiniCam() {
-            camCtx.clearRect(0, 0, miniCamCanvas.width, miniCamCanvas.height);
-            
-            camCtx.strokeStyle = 'rgba(255,255,255,0.05)';
-            camCtx.lineWidth = 1;
-            for(let i=0; i<miniCamCanvas.width; i+=20) {
-                camCtx.beginPath(); camCtx.moveTo(i, 0); camCtx.lineTo(i, miniCamCanvas.height); camCtx.stroke();
-            }
-
-            const scaleX = miniCamCanvas.width / State.farmWidth;
-            const scaleY = miniCamCanvas.height / State.farmHeight;
-
-            chickensLogic.forEach(c => {
-                camCtx.fillStyle = '#fff';
-                camCtx.beginPath();
-                camCtx.arc(c.x * scaleX, c.y * scaleY, 2, 0, Math.PI * 2);
-                camCtx.fill();
-            });
-        }
     </script>
 </body>
 </html>
